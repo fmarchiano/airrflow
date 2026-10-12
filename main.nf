@@ -274,7 +274,7 @@ workflow NFCORE_AIRRFLOW {
         params.vprimers,
         params.race_linker,
         params.cprimers,
-        params.umi_length,
+        (params.library_generation_method == 'specific_pcr') ? 0 : params.umi_length,
         params.reference_10x,
         params.index_file,
         params.trust4_barcode_whitelist,

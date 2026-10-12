@@ -33,9 +33,10 @@ process PRESTO_MASKPRIMERS {
 
     script:
     def revpr = primer_revpr ? '--revpr' : ''
+    def effective_umi = (umi_length == -1) ? 0 : umi_length
     if (cprimer_position == "R1") {
-        def primer_start_R1 = (index_file | umi_position == 'R1') ? "--start ${umi_length + cprimer_start} --barcode" : "--start ${cprimer_start}"
-        def primer_start_R2 = (umi_position == 'R2') ? "--start ${umi_length + vprimer_start} --barcode" : "--start ${vprimer_start}"
+        def primer_start_R1 = (index_file | umi_position == 'R1') ? "--start ${effective_umi + cprimer_start} --barcode" : "--start ${cprimer_start}"
+        def primer_start_R2 = (umi_position == 'R2') ? "--start ${effective_umi + vprimer_start} --barcode" : "--start ${vprimer_start}"
         """
         MaskPrimers.py score --nproc ${task.cpus} -s $R1 -p ${cprimers} $primer_start_R1 $revpr --maxerror ${primer_r1_maxerror} --mode ${primer_r1_mask_mode} --outname ${meta.id}_R1 --log ${meta.id}_R1.log > ${meta.id}_command_log_R1.txt
         MaskPrimers.py score --nproc ${task.cpus} -s $R2 -p ${vprimers} $primer_start_R2 $revpr --maxerror ${primer_r2_maxerror} --mode ${primer_r2_mask_mode} --outname ${meta.id}_R2 --log ${meta.id}_R2.log > ${meta.id}_command_log_R2.txt
@@ -43,8 +44,8 @@ process PRESTO_MASKPRIMERS {
 
         """
     } else if (cprimer_position == "R2") {
-        def primer_start_R1 = (index_file | umi_position == 'R1') ? "--start ${umi_length + vprimer_start} --barcode" : "--start ${vprimer_start}"
-        def primer_start_R2 = (umi_position == 'R2') ? "--start ${umi_length + cprimer_start} --barcode" : "--start ${cprimer_start}"
+        def primer_start_R1 = (index_file | umi_position == 'R1') ? "--start ${effective_umi + vprimer_start} --barcode" : "--start ${vprimer_start}"
+        def primer_start_R2 = (umi_position == 'R2') ? "--start ${effective_umi + cprimer_start} --barcode" : "--start ${cprimer_start}"
         """
         MaskPrimers.py score --nproc ${task.cpus} -s $R1 -p ${vprimers} $primer_start_R1 $revpr --maxerror ${primer_r1_maxerror} --mode ${primer_r1_mask_mode} --outname ${meta.id}_R1 --log ${meta.id}_R1.log > ${meta.id}_command_log_R1.txt
         MaskPrimers.py score --nproc ${task.cpus} -s $R2 -p ${cprimers} $primer_start_R2 $revpr --maxerror ${primer_r2_maxerror} --mode ${primer_r2_mask_mode} --outname ${meta.id}_R2 --log ${meta.id}_R2.log > ${meta.id}_command_log_R2.txt

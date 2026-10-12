@@ -18,6 +18,7 @@ include { PRESTO_MASKPRIMERS_SCORE as PRESTO_MASKPRIMERS_SCORE_UMI_R1 }    from 
 include { PRESTO_MASKPRIMERS_SCORE as PRESTO_MASKPRIMERS_SCORE_UMI_R2 }    from '../../modules/local/presto/presto_maskprimers_score'
 include { PRESTO_MASKPRIMERS_EXTRACT as PRESTO_MASKPRIMERS_EXTRACT_R1 }    from '../../modules/local/presto/presto_maskprimers_extract'
 include { PRESTO_MASKPRIMERS_EXTRACT as PRESTO_MASKPRIMERS_EXTRACT_R2 }    from '../../modules/local/presto/presto_maskprimers_extract'
+include { PRESTO_TRUNCATE_BARCODE as PRESTO_TRUNCATE_BARCODE_UMI      }    from '../../modules/local/presto/presto_truncate_barcode'
 include { PRESTO_PAIRSEQ        as  PRESTO_PAIRSEQ_UMI                }    from '../../modules/local/presto/presto_pairseq'
 include { PRESTO_PAIRSEQ        as  PRESTO_PAIRSEQ_ALIGN              }    from '../../modules/local/presto/presto_pairseq'
 include { PRESTO_PAIRSEQ        as  PRESTO_PAIRSEQ_EXTRACT            }    from '../../modules/local/presto/presto_pairseq'
@@ -80,6 +81,9 @@ workflow PRESTO_UMI {
 
     main:
     ch_versions = channel.empty()
+
+    // umi_length == -1 means auto-detect: cprimer_start already includes the UMI offset
+    def effective_umi_len = (umi_length == -1) ? 0 : umi_length
 
     // Validate params
     if (maskprimers_align_race & umi_position == 'R1') {error "The maskprimers align race option is only supported with UMI barcodes in the R2 reads (reads containing V region)."}
@@ -259,6 +263,15 @@ workflow PRESTO_UMI {
         ch_maskprimers_logs = PRESTO_MASKPRIMERS_ALIGN_UMI_R1.out.logs
         ch_maskprimers_logs = ch_maskprimers_logs.mix(PRESTO_MASKPRIMERS_ALIGN_UMI_R2.out.logs)
 
+        // Truncate BARCODE to umi_length when set, removing stagger contamination
+        if (umi_length > 0) {
+            PRESTO_TRUNCATE_BARCODE_UMI(
+                ch_maskprimers_reads,
+                umi_length
+            )
+            ch_maskprimers_reads = PRESTO_TRUNCATE_BARCODE_UMI.out.reads
+        }
+
         // Pre-consensus pair
         def barcode_position = (umi_position == "R1" | index_file) ? "R1" : "R2"
 
@@ -274,7 +287,7 @@ workflow PRESTO_UMI {
 
         if (cprimer_position == "R1"){
             def barcode_R1 = (index_file | umi_position == 'R1') ? true : false
-            def cprimer_start_var = (index_file | umi_position == 'R1') ? "${umi_length + cprimer_start}" : "${cprimer_start}"
+            def cprimer_start_var = (index_file | umi_position == 'R1') ? "${effective_umi_len + cprimer_start}" : "${cprimer_start}"
 
             PRESTO_MASKPRIMERS_EXTRACT_R1(
                 ch_reads_R1,
@@ -286,7 +299,7 @@ workflow PRESTO_UMI {
             )
 
             def barcode_R2 = (umi_position == "R2") ? true : false
-            def vprimer_start_var = (umi_position == "R2") ? "${umi_length + vprimer_start}" : "${vprimer_start}"
+            def vprimer_start_var = (umi_position == "R2") ? "${effective_umi_len + vprimer_start}" : "${vprimer_start}"
 
             PRESTO_MASKPRIMERS_EXTRACT_R2(
                 ch_reads_R2,
@@ -298,7 +311,7 @@ workflow PRESTO_UMI {
             )
         } else if (cprimer_position == "R2") {
             def barcode_R1 = (index_file | umi_position == 'R1') ? true : false
-            def vprimer_start_var = (index_file | umi_position == 'R1') ? "${umi_length + vprimer_start}" : "${vprimer_start}"
+            def vprimer_start_var = (index_file | umi_position == 'R1') ? "${effective_umi_len + vprimer_start}" : "${vprimer_start}"
 
             PRESTO_MASKPRIMERS_EXTRACT_R1(
                 ch_reads_R1,
@@ -310,7 +323,7 @@ workflow PRESTO_UMI {
             )
 
             def barcode_R2 = (umi_position == "R2") ? true : false
-            def cprimer_start_var = (umi_position == "R2") ? "${umi_length + cprimer_start}" : "${cprimer_start}"
+            def cprimer_start_var = (umi_position == "R2") ? "${effective_umi_len + cprimer_start}" : "${cprimer_start}"
 
             PRESTO_MASKPRIMERS_EXTRACT_R2(
                 ch_reads_R2,
@@ -346,7 +359,7 @@ workflow PRESTO_UMI {
 
         if (cprimer_position == "R1") {
             def barcode_R1 = (index_file | umi_position == 'R1') ? true : false
-            def cprimer_start_var = (index_file | umi_position == 'R1') ? "${umi_length + cprimer_start}" : "${cprimer_start}"
+            def cprimer_start_var = (index_file | umi_position == 'R1') ? "${effective_umi_len + cprimer_start}" : "${cprimer_start}"
             PRESTO_MASKPRIMERS_SCORE_UMI_R1(
                 ch_reads_R1,
                 ch_cprimers.collect(),
@@ -359,7 +372,7 @@ workflow PRESTO_UMI {
             )
 
             def barcode_R2 = (umi_position == "R2") ? true : false
-            def vprimer_start_var = (umi_position == "R2") ? "${umi_length + vprimer_start}" : "${vprimer_start}"
+            def vprimer_start_var = (umi_position == "R2") ? "${effective_umi_len + vprimer_start}" : "${vprimer_start}"
             PRESTO_MASKPRIMERS_SCORE_UMI_R2(
                 ch_reads_R2,
                 ch_vprimers.collect(),
@@ -372,7 +385,7 @@ workflow PRESTO_UMI {
             )
         } else if (cprimer_position == "R2") {
             def barcode_R1 = (index_file | umi_position == 'R1') ? true : false
-            def vprimer_start_var = (index_file | umi_position == 'R1') ? "${umi_length + vprimer_start}" : "${vprimer_start}"
+            def vprimer_start_var = (index_file | umi_position == 'R1') ? "${effective_umi_len + vprimer_start}" : "${vprimer_start}"
             PRESTO_MASKPRIMERS_SCORE_UMI_R1(
                 ch_reads_R1,
                 ch_vprimers.collect(),
@@ -384,7 +397,7 @@ workflow PRESTO_UMI {
                 "R1"
             )
             def barcode_R2 = (umi_position == "R2") ? true : false
-            def cprimer_start_var = (umi_position == "R2") ? "${umi_length + cprimer_start}" : "${cprimer_start}"
+            def cprimer_start_var = (umi_position == "R2") ? "${effective_umi_len + cprimer_start}" : "${cprimer_start}"
 
             PRESTO_MASKPRIMERS_SCORE_UMI_R2(
                 ch_reads_R2,

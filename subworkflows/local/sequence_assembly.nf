@@ -111,8 +111,8 @@ workflow SEQUENCE_ASSEMBLY {
             ch_vprimers_fasta = channel.of([])
             ch_cprimers_fasta = channel.of([])
         }
-        if (umi_length < 2)  {
-            error "The 'specific_pcr_umi' library generation method requires setting the '--umi_length' to a value greater than 1."
+        if (umi_length < 2 && umi_length != -1)  {
+            error "The 'specific_pcr_umi' library generation method requires setting the '--umi_length' to a value greater than 1 (or -1 for auto-detect)."
         }
         if (internal_cregion_sequences) {
             ch_internal_cregion = channel.fromPath(internal_cregion_sequences, checkIfExists: true)
@@ -193,7 +193,7 @@ workflow SEQUENCE_ASSEMBLY {
 
     // Validate UMI position
     if (index_file & umi_position == 'R2') {error "Please do not set `--umi_position` option if index file with UMIs is provided."}
-    if (umi_length < 0) {error "Please provide the UMI barcode length in the option `--umi_length`. To run without UMIs, set umi_length to 0."}
+    if (umi_length < -1) {error "Please provide the UMI barcode length in the option `--umi_length`. To run without UMIs, set umi_length to 0. Use -1 for auto-detect."}
     if (!index_file & umi_start != 0) {error "Setting a UMI start position is only allowed when providing the UMIs in a separate index read file. If so, please provide the `--index_file` flag as well."}
 
     //
