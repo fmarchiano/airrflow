@@ -113,7 +113,7 @@ workflow PRESTO_UMI {
         ch_versions = ch_versions.mix(FASTP.out.versions)
 
         // Rename single fastq
-        ch_rename_input = FASTP.out.reads.map{ meta, reads -> [meta, reads[0]] }
+        ch_rename_input = FASTP.out.reads.map{ meta, reads -> [meta, reads instanceof List ? reads[0] : reads] }
         RENAME_FASTQ_SINGLE_UMI ( ch_rename_input )
 
         // Gunzip single file

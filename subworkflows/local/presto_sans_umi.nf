@@ -56,7 +56,7 @@ workflow PRESTO_SANS_UMI {
     if (single_end) {
 
         // gunzip single fastq.gz
-        ch_gunzip_input = FASTP.out.reads.map{ meta, reads -> [meta, reads[0]] }
+        ch_gunzip_input = FASTP.out.reads.map{ meta, reads -> [meta, reads instanceof List ? reads[0] : reads] }
         GUNZIP_SINGLE_SANS_UMI ( ch_gunzip_input )
 
         // Filter sequences by quality score (no assembly for single-end)
