@@ -41,9 +41,11 @@ process PRESTO_MASKPRIMERS_ALIGN_BESTEFF {
     $barcode_param \\
     $revpr \\
     $args \\
+    --failed \\
     --outname ${meta.id}_${suffix} \\
     --log ${meta.id}_${suffix}.log > ${meta.id}_command_log_${suffix}.txt
     ParseLog.py -l *.log $args2
+    touch ${meta.id}_${suffix}_primers-pass.fastq ${meta.id}_${suffix}_primers-fail.fastq
     cat ${meta.id}_${suffix}_primers-pass.fastq ${meta.id}_${suffix}_primers-fail.fastq > ${meta.id}_${suffix}_primers-merged.fastq
 
     """
