@@ -76,6 +76,7 @@ workflow SEQUENCE_ASSEMBLY {
     buildconsensus_maxerror
     buildconsensus_maxgap
     primer_consensus
+    single_end
 
     main:
 
@@ -232,7 +233,8 @@ workflow SEQUENCE_ASSEMBLY {
             cprimer_start,
             vprimer_start,
             primer_revpr,
-            filterseq_q
+            filterseq_q,
+            single_end
         )
         ch_presto_fasta = PRESTO_SANS_UMI.out.fasta
         ch_fastp_reads_html = PRESTO_SANS_UMI.out.fastp_reads_html
@@ -287,7 +289,8 @@ workflow SEQUENCE_ASSEMBLY {
             filterseq_q,
             buildconsensus_maxerror,
             buildconsensus_maxgap,
-            primer_consensus
+            primer_consensus,
+            single_end
         )
         ch_presto_fasta = PRESTO_UMI.out.fasta
         ch_fastp_reads_html = PRESTO_UMI.out.fastp_reads_html

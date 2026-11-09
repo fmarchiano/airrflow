@@ -1,6 +1,7 @@
 // Include statements
 
 include { GUNZIP            as GUNZIP_SANS_UMI                } from '../../modules/local/gunzip'
+include { GUNZIP_SINGLE     as GUNZIP_SINGLE_SANS_UMI         } from '../../modules/local/gunzip_single'
 include { FASTQC_POSTASSEMBLY as FASTQC_POSTASSEMBLY_SANS_UMI } from '../../modules/local/fastqc_postassembly'
 include { FASTP                                               } from '../../modules/nf-core/fastp/main'
 
@@ -9,8 +10,10 @@ include { PRESTO_ASSEMBLEPAIRS               as  PRESTO_ASSEMBLEPAIRS_SANS_UMI }
 include { PRESTO_FILTERSEQ_POSTASSEMBLY      as  PRESTO_FILTERSEQ_POSTASSEMBLY_SANS_UMI }      from '../../modules/local/presto/presto_filterseq_postassembly'
 include { PRESTO_MASKPRIMERS_SCORE           as  PRESTO_MASKPRIMERS_SCORE_SANSUMI_FWD }         from '../../modules/local/presto/presto_maskprimers_score'
 include { PRESTO_MASKPRIMERS_SCORE           as  PRESTO_MASKPRIMERS_SCORE_SANSUMI_REV }         from '../../modules/local/presto/presto_maskprimers_score'
+include { PRESTO_MASKPRIMERS_SCORE_BESTEFF   as  PRESTO_MASKPRIMERS_SCORE_BESTEFF_SANSUMI }     from '../../modules/local/presto/presto_maskprimers_score_besteff'
 include { PRESTO_MASKPRIMERS_ALIGN           as  PRESTO_MASKPRIMERS_ALIGN_SANSUMI_FWD }         from '../../modules/local/presto/presto_maskprimers_align'
 include { PRESTO_MASKPRIMERS_ALIGN           as  PRESTO_MASKPRIMERS_ALIGN_SANSUMI_REV }         from '../../modules/local/presto/presto_maskprimers_align'
+include { PRESTO_MASKPRIMERS_ALIGN_BESTEFF   as  PRESTO_MASKPRIMERS_ALIGN_BESTEFF_SANSUMI }     from '../../modules/local/presto/presto_maskprimers_align_besteff'
 include { PRESTO_PARSEHEADERS_PRIMERS        as  PRESTO_PARSEHEADERS_PRIMERS_SANS_UMI }         from '../../modules/local/presto/presto_parseheaders_primers'
 include { PRESTO_PARSEHEADERS_METADATA       as  PRESTO_PARSEHEADERS_METADATA_SANS_UMI }        from '../../modules/local/presto/presto_parseheaders_metadata'
 include { PRESTO_COLLAPSESEQ                 as  PRESTO_COLLAPSESEQ_SANS_UMI }                  from '../../modules/local/presto/presto_collapseseq'
@@ -35,6 +38,7 @@ workflow PRESTO_SANS_UMI {
     vprimer_start
     primer_revpr
     filterseq_q
+    single_end
 
     main:
     ch_versions = channel.empty()
@@ -48,140 +52,221 @@ workflow PRESTO_SANS_UMI {
         save_merged
     )
     ch_versions = ch_versions.mix(FASTP.out.versions)
-    ch_gunzip = FASTP.out.reads.map{ meta,reads -> [meta, reads[0], reads[1]] }
 
-    // gunzip fastq.gz to fastq
-    GUNZIP_SANS_UMI ( ch_gunzip )
+    if (single_end) {
 
-    // Assemble read pairs
-    PRESTO_ASSEMBLEPAIRS_SANS_UMI (
-        GUNZIP_SANS_UMI.out.reads
-    )
+        // gunzip single fastq.gz
+        ch_gunzip_input = FASTP.out.reads.map{ meta, reads -> [meta, reads[0]] }
+        GUNZIP_SINGLE_SANS_UMI ( ch_gunzip_input )
 
-    // Filter sequences by quality score
-    PRESTO_FILTERSEQ_POSTASSEMBLY_SANS_UMI (
-        PRESTO_ASSEMBLEPAIRS_SANS_UMI.out.reads,
-        filterseq_q
-    )
+        // Filter sequences by quality score (no assembly for single-end)
+        PRESTO_FILTERSEQ_POSTASSEMBLY_SANS_UMI (
+            GUNZIP_SINGLE_SANS_UMI.out.reads,
+            filterseq_q
+        )
 
-    // Mask primers
-    def suffix_FWD = "R1"
-    def suffix_REV = "R2"
-    def barcode_R1 = false
-    def barcode_R2 = false
-    ch_reads = PRESTO_FILTERSEQ_POSTASSEMBLY_SANS_UMI.out.reads
-    if (maskprimers_align){
-        if (cprimer_position == "R1") {
+        // Mask primers: V at 5' (FWD), C at 3' (REV, best-effort)
+        def barcode_R1 = false
+        def barcode_R2 = false
+        ch_filtered = PRESTO_FILTERSEQ_POSTASSEMBLY_SANS_UMI.out.reads
+        if (maskprimers_align) {
+            // V primers (5', forward)
             PRESTO_MASKPRIMERS_ALIGN_SANSUMI_FWD(
-                ch_reads,
-                ch_cprimers.collect(),
-                primer_maxlen,
-                barcode_R1,
-                primer_r1_maxerror,
-                primer_r1_mask_mode,
-                false,
-                suffix_FWD
-            )
-            PRESTO_MASKPRIMERS_ALIGN_SANSUMI_REV(
-                PRESTO_MASKPRIMERS_ALIGN_SANSUMI_FWD.out.reads,
-                ch_vprimers.collect(),
-                primer_maxlen,
-                barcode_R2,
-                primer_r2_maxerror,
-                primer_r2_mask_mode,
-                primer_revpr,
-                suffix_REV
-            )
-        } else if (cprimer_position == "R2") {
-            PRESTO_MASKPRIMERS_ALIGN_SANSUMI_FWD(
-                ch_reads,
+                ch_filtered,
                 ch_vprimers.collect(),
                 primer_maxlen,
                 barcode_R1,
                 primer_r1_maxerror,
                 primer_r1_mask_mode,
                 false,
-                suffix_FWD
+                "R1"
             )
-            PRESTO_MASKPRIMERS_ALIGN_SANSUMI_REV(
+            // C primers (3', best-effort pass-through)
+            PRESTO_MASKPRIMERS_ALIGN_BESTEFF_SANSUMI(
                 PRESTO_MASKPRIMERS_ALIGN_SANSUMI_FWD.out.reads,
                 ch_cprimers.collect(),
                 primer_maxlen,
                 barcode_R2,
                 primer_r2_maxerror,
                 primer_r2_mask_mode,
-                primer_revpr,
-                suffix_REV
+                true,
+                "R2"
             )
+
+            ch_maskprimers_logs = PRESTO_MASKPRIMERS_ALIGN_SANSUMI_FWD.out.logs
+            ch_maskprimers_logs = ch_maskprimers_logs.mix(PRESTO_MASKPRIMERS_ALIGN_BESTEFF_SANSUMI.out.logs)
+            ch_masked_reads = PRESTO_MASKPRIMERS_ALIGN_BESTEFF_SANSUMI.out.reads
+
         } else {
-            error "Error in determining cprimer position. Please choose R1 or R2."
+            // V primers (5', forward, score mode)
+            PRESTO_MASKPRIMERS_SCORE_SANSUMI_FWD(
+                ch_filtered,
+                ch_vprimers.collect(),
+                "${vprimer_start}",
+                barcode_R1,
+                primer_r1_maxerror,
+                primer_r1_mask_mode,
+                false,
+                "R1"
+            )
+            // C primers (3', best-effort, revpr to search from 3' end)
+            PRESTO_MASKPRIMERS_SCORE_BESTEFF_SANSUMI(
+                PRESTO_MASKPRIMERS_SCORE_SANSUMI_FWD.out.reads,
+                ch_cprimers.collect(),
+                "${cprimer_start}",
+                barcode_R2,
+                primer_r2_maxerror,
+                primer_r2_mask_mode,
+                true,
+                "R2"
+            )
+
+            ch_maskprimers_logs = PRESTO_MASKPRIMERS_SCORE_SANSUMI_FWD.out.logs
+            ch_maskprimers_logs = ch_maskprimers_logs.mix(PRESTO_MASKPRIMERS_SCORE_BESTEFF_SANSUMI.out.logs)
+            ch_masked_reads = PRESTO_MASKPRIMERS_SCORE_BESTEFF_SANSUMI.out.reads
         }
 
+        ch_assemblepairs_logs = channel.empty()
 
-        ch_maskprimers_logs = PRESTO_MASKPRIMERS_ALIGN_SANSUMI_FWD.out.logs
-        ch_maskprimers_logs = ch_maskprimers_logs.mix(PRESTO_MASKPRIMERS_ALIGN_SANSUMI_REV.out.logs)
-
-        ch_masked_reads = PRESTO_MASKPRIMERS_ALIGN_SANSUMI_REV.out.reads
     } else {
-        if (cprimer_position == "R1") {
-            def start_FWD = "${cprimer_start}"
-            def start_REV = "${vprimer_start}"
-            def revpr_FWD = false
-            PRESTO_MASKPRIMERS_SCORE_SANSUMI_FWD(
-                ch_reads,
-                ch_cprimers.collect(),
-                start_FWD,
-                barcode_R1,
-                primer_r1_maxerror,
-                primer_r1_mask_mode,
-                revpr_FWD,
-                suffix_FWD
-            )
-            PRESTO_MASKPRIMERS_SCORE_SANSUMI_REV(
-                PRESTO_MASKPRIMERS_SCORE_SANSUMI_FWD.out.reads,
-                ch_vprimers.collect(),
-                start_REV,
-                barcode_R2,
-                primer_r2_maxerror,
-                primer_r2_mask_mode,
-                primer_revpr,
-                suffix_REV
-            )
-        } else if (cprimer_position == "R2") {
-            def start_FWD = "${vprimer_start}"
-            def start_REV = "${cprimer_start}"
-            def revpr_FWD = false
 
-            PRESTO_MASKPRIMERS_SCORE_SANSUMI_FWD(
-                ch_reads,
-                ch_vprimers.collect(),
-                start_FWD,
-                barcode_R1,
-                primer_r1_maxerror,
-                primer_r1_mask_mode,
-                revpr_FWD,
-                suffix_FWD
-            )
-            PRESTO_MASKPRIMERS_SCORE_SANSUMI_REV(
-                PRESTO_MASKPRIMERS_SCORE_SANSUMI_FWD.out.reads,
-                ch_cprimers.collect(),
-                start_REV,
-                barcode_R2,
-                primer_r2_maxerror,
-                primer_r2_mask_mode,
-                primer_revpr,
-                suffix_REV
-            )
+        ch_gunzip = FASTP.out.reads.map{ meta,reads -> [meta, reads[0], reads[1]] }
+
+        // gunzip fastq.gz to fastq
+        GUNZIP_SANS_UMI ( ch_gunzip )
+
+        // Assemble read pairs
+        PRESTO_ASSEMBLEPAIRS_SANS_UMI (
+            GUNZIP_SANS_UMI.out.reads
+        )
+
+        // Filter sequences by quality score
+        PRESTO_FILTERSEQ_POSTASSEMBLY_SANS_UMI (
+            PRESTO_ASSEMBLEPAIRS_SANS_UMI.out.reads,
+            filterseq_q
+        )
+
+        // Mask primers
+        def suffix_FWD = "R1"
+        def suffix_REV = "R2"
+        def barcode_R1 = false
+        def barcode_R2 = false
+        ch_reads = PRESTO_FILTERSEQ_POSTASSEMBLY_SANS_UMI.out.reads
+        if (maskprimers_align){
+            if (cprimer_position == "R1") {
+                PRESTO_MASKPRIMERS_ALIGN_SANSUMI_FWD(
+                    ch_reads,
+                    ch_cprimers.collect(),
+                    primer_maxlen,
+                    barcode_R1,
+                    primer_r1_maxerror,
+                    primer_r1_mask_mode,
+                    false,
+                    suffix_FWD
+                )
+                PRESTO_MASKPRIMERS_ALIGN_SANSUMI_REV(
+                    PRESTO_MASKPRIMERS_ALIGN_SANSUMI_FWD.out.reads,
+                    ch_vprimers.collect(),
+                    primer_maxlen,
+                    barcode_R2,
+                    primer_r2_maxerror,
+                    primer_r2_mask_mode,
+                    primer_revpr,
+                    suffix_REV
+                )
+            } else if (cprimer_position == "R2") {
+                PRESTO_MASKPRIMERS_ALIGN_SANSUMI_FWD(
+                    ch_reads,
+                    ch_vprimers.collect(),
+                    primer_maxlen,
+                    barcode_R1,
+                    primer_r1_maxerror,
+                    primer_r1_mask_mode,
+                    false,
+                    suffix_FWD
+                )
+                PRESTO_MASKPRIMERS_ALIGN_SANSUMI_REV(
+                    PRESTO_MASKPRIMERS_ALIGN_SANSUMI_FWD.out.reads,
+                    ch_cprimers.collect(),
+                    primer_maxlen,
+                    barcode_R2,
+                    primer_r2_maxerror,
+                    primer_r2_mask_mode,
+                    primer_revpr,
+                    suffix_REV
+                )
+            } else {
+                error "Error in determining cprimer position. Please choose R1 or R2."
+            }
+
+
+            ch_maskprimers_logs = PRESTO_MASKPRIMERS_ALIGN_SANSUMI_FWD.out.logs
+            ch_maskprimers_logs = ch_maskprimers_logs.mix(PRESTO_MASKPRIMERS_ALIGN_SANSUMI_REV.out.logs)
+
+            ch_masked_reads = PRESTO_MASKPRIMERS_ALIGN_SANSUMI_REV.out.reads
         } else {
-            error "Error in determining cprimer position. Please choose R1 or R2."
+            if (cprimer_position == "R1") {
+                def start_FWD = "${cprimer_start}"
+                def start_REV = "${vprimer_start}"
+                def revpr_FWD = false
+                PRESTO_MASKPRIMERS_SCORE_SANSUMI_FWD(
+                    ch_reads,
+                    ch_cprimers.collect(),
+                    start_FWD,
+                    barcode_R1,
+                    primer_r1_maxerror,
+                    primer_r1_mask_mode,
+                    revpr_FWD,
+                    suffix_FWD
+                )
+                PRESTO_MASKPRIMERS_SCORE_SANSUMI_REV(
+                    PRESTO_MASKPRIMERS_SCORE_SANSUMI_FWD.out.reads,
+                    ch_vprimers.collect(),
+                    start_REV,
+                    barcode_R2,
+                    primer_r2_maxerror,
+                    primer_r2_mask_mode,
+                    primer_revpr,
+                    suffix_REV
+                )
+            } else if (cprimer_position == "R2") {
+                def start_FWD = "${vprimer_start}"
+                def start_REV = "${cprimer_start}"
+                def revpr_FWD = false
+
+                PRESTO_MASKPRIMERS_SCORE_SANSUMI_FWD(
+                    ch_reads,
+                    ch_vprimers.collect(),
+                    start_FWD,
+                    barcode_R1,
+                    primer_r1_maxerror,
+                    primer_r1_mask_mode,
+                    revpr_FWD,
+                    suffix_FWD
+                )
+                PRESTO_MASKPRIMERS_SCORE_SANSUMI_REV(
+                    PRESTO_MASKPRIMERS_SCORE_SANSUMI_FWD.out.reads,
+                    ch_cprimers.collect(),
+                    start_REV,
+                    barcode_R2,
+                    primer_r2_maxerror,
+                    primer_r2_mask_mode,
+                    primer_revpr,
+                    suffix_REV
+                )
+            } else {
+                error "Error in determining cprimer position. Please choose R1 or R2."
+            }
+
+
+            ch_maskprimers_logs = PRESTO_MASKPRIMERS_SCORE_SANSUMI_FWD.out.logs
+            ch_maskprimers_logs = ch_maskprimers_logs.mix(PRESTO_MASKPRIMERS_SCORE_SANSUMI_REV.out.logs)
+
+            ch_masked_reads = PRESTO_MASKPRIMERS_SCORE_SANSUMI_REV.out.reads
+
         }
 
-
-        ch_maskprimers_logs = PRESTO_MASKPRIMERS_SCORE_SANSUMI_FWD.out.logs
-        ch_maskprimers_logs = ch_maskprimers_logs.mix(PRESTO_MASKPRIMERS_SCORE_SANSUMI_REV.out.logs)
-
-        ch_masked_reads = PRESTO_MASKPRIMERS_SCORE_SANSUMI_REV.out.reads
-
+        ch_assemblepairs_logs = PRESTO_ASSEMBLEPAIRS_SANS_UMI.out.logs.collect()
     }
 
     // Generate QC stats after reads paired and filtered but before collapsed
@@ -192,7 +277,8 @@ workflow PRESTO_SANS_UMI {
     // Annotate primers in C_PRIMER and V_PRIMER field
     PRESTO_PARSEHEADERS_PRIMERS_SANS_UMI (
         ch_masked_reads,
-        cprimer_position
+        cprimer_position,
+        single_end
     )
 
     // Annotate metadata on primer headers
@@ -216,7 +302,7 @@ workflow PRESTO_SANS_UMI {
     fastp_reads_json = FASTP.out.json.collect{ meta,json -> json }
     fastp_reads_html = FASTP.out.html.collect{ meta,html -> html }
     fastqc_postassembly_gz = FASTQC_POSTASSEMBLY_SANS_UMI.out.zip
-    presto_assemblepairs_logs = PRESTO_ASSEMBLEPAIRS_SANS_UMI.out.logs.collect()
+    presto_assemblepairs_logs = ch_assemblepairs_logs
     presto_filterseq_logs = PRESTO_FILTERSEQ_POSTASSEMBLY_SANS_UMI.out.logs
     presto_maskprimers_logs = ch_maskprimers_logs.collect()
     presto_collapseseq_logs = PRESTO_COLLAPSESEQ_SANS_UMI.out.logs.collect()

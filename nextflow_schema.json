@@ -255,6 +255,12 @@
                     "fa_icon": "fas fa-align-center",
                     "description": "Maximum gap for building the sequence consensus in the pRESTO BuildConsensus step."
                 },
+                "single_end": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Set to true for single-end sequencing data (no R2 reads).",
+                    "fa_icon": "fas fa-dna"
+                },
                 "cluster_sets": {
                     "type": "boolean",
                     "default": true,

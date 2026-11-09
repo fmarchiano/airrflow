@@ -53,11 +53,10 @@ def check_samplesheet(file_in, assembled):
     sample_run_dict = {}
     with open(file_in, "r") as fin:
         # Defining minimum columns and required columns
-        min_cols = 7
+        min_cols = 6
         required_columns_raw = [
             "sample_id",
             "filename_R1",
-            "filename_R2",
             "subject_id",
             "species",
             "pcr_target_locus",
@@ -82,7 +81,6 @@ def check_samplesheet(file_in, assembled):
         no_whitespaces_raw = [
             "sample_id",
             "filename_R1",
-            "filename_R2",
             "subject_id",
             "species",
             "pcr_target_locus",
@@ -113,8 +111,8 @@ def check_samplesheet(file_in, assembled):
                 if col not in header:
                     print("ERROR: Please check samplesheet header: {} ".format(",".join(header)))
                     print("Header is missing column {}".format(col))
-                    print("Header must contain columns {}".format("\t".join(required_columns)))
-                    raise IndexError("Header must contain columns {}".format("\t".join(required_columns)))
+                    print("Header must contain columns {}".format("\t".join(required_columns_assembled)))
+                    raise IndexError("Header must contain columns {}".format("\t".join(required_columns_assembled)))
             for col in no_whitespaces_assembled:
                 values = tab[col].tolist()
                 if any([re.search(r"\s+", s) for s in values]):
@@ -128,8 +126,8 @@ def check_samplesheet(file_in, assembled):
                 if col not in header:
                     print("ERROR: Please check samplesheet header: {} ".format(",".join(header)))
                     print("Header is missing column {}".format(col))
-                    print("Header must contain columns {}".format("\t".join(required_columns)))
-                    raise IndexError("Header must contain columns {}".format("\t".join(required_columns)))
+                    print("Header must contain columns {}".format("\t".join(required_columns_raw)))
+                    raise IndexError("Header must contain columns {}".format("\t".join(required_columns_raw)))
             for col in no_whitespaces_raw:
                 values = tab[col].tolist()
                 if any([re.search(r"\s+", s) for s in values]):

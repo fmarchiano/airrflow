@@ -71,14 +71,16 @@ def create_fastq_channels(LinkedHashMap col, collapseby, cloneby, index_file) {
     meta.filetype           = "fastq"
     meta.single_cell        = col.single_cell.toLowerCase()
     meta.locus              = col.pcr_target_locus
-    meta.single_end         = false
+    meta.single_end         = !col.filename_R2
 
     def array = []
     if (!file(col.filename_R1).exists()) {
         error "ERROR: Please check input samplesheet -> Read 1 FastQ file does not exist!\n${col.filename_R1}"
     }
-    if (!file(col.filename_R2).exists()) {
-        error "ERROR: Please check input samplesheet -> Read 2 FastQ file does not exist!\n${col.filename_R2}"
+    if (col.filename_R2) {
+        if (!file(col.filename_R2).exists()) {
+            error "ERROR: Please check input samplesheet -> Read 2 FastQ file does not exist!\n${col.filename_R2}"
+        }
     }
     if (col.filename_I1) {
         if (!index_file){
@@ -88,10 +90,15 @@ def create_fastq_channels(LinkedHashMap col, collapseby, cloneby, index_file) {
             error "ERROR: Please check input samplesheet -> Index read FastQ file does not exist!\n${col.filename_I1}"
         }
         array = [ meta, [ file(col.filename_R1), file(col.filename_R2), file(col.filename_I1) ] ]
-    } else {
+    } else if (col.filename_R2) {
         array = [ meta, [ file(col.filename_R1), file(col.filename_R2) ] ]
         if (index_file) {
             error "ERROR: Index file path was provided but the index file path is not specified in the samplesheet!"
+        }
+    } else {
+        array = [ meta, [ file(col.filename_R1) ] ]
+        if (index_file) {
+            error "ERROR: Index file is not supported for single-end reads."
         }
     }
     return array
