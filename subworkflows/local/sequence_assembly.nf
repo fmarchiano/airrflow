@@ -17,6 +17,7 @@
 include { FASTQ_INPUT_CHECK           } from '../../subworkflows/local/fastq_input_check'
 include { PRESTO_UMI                  } from '../../subworkflows/local/presto_umi'
 include { PRESTO_SANS_UMI             } from '../../subworkflows/local/presto_sans_umi'
+include { PRESTO_VHVL                 } from '../../subworkflows/local/presto_vhvl'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -188,6 +189,14 @@ workflow SEQUENCE_ASSEMBLY {
         if (internal_cregion_sequences) {
             error "Please do not set '--internal_cregion_sequences' when using the 'dt_5p_race' library generation method without UMIs."
         }
+    } else if (library_generation_method == 'vhvl') {
+        ch_vprimers_fasta = channel.of([])
+        ch_cprimers_fasta = channel.of([])
+        if (umi_length > 0)  {
+            error "Please do not set a UMI length with the library preparation method 'vhvl'."
+        } else {
+            umi_length = 0
+        }
     } else {
         error "The provided library generation method is not supported. Please check the docs for `--library_generation_method`."
     }
@@ -213,7 +222,31 @@ workflow SEQUENCE_ASSEMBLY {
 
     ch_reads = FASTQ_INPUT_CHECK.out.reads
 
-    if (umi_length == 0) {
+    if (library_generation_method == 'vhvl') {
+        //
+        // SUBWORKFLOW: VH:VL paired — no primers, pair-level collapse
+        //
+        PRESTO_VHVL(
+            ch_reads,
+            ch_adapter_fasta,
+            save_trimmed,
+            filterseq_q
+        )
+        ch_presto_fasta = PRESTO_VHVL.out.fasta
+        ch_fastp_reads_html = PRESTO_VHVL.out.fastp_reads_html
+        ch_fastp_reads_json = PRESTO_VHVL.out.fastp_reads_json
+        ch_fastqc_postassembly = PRESTO_VHVL.out.fastqc_postassembly_gz
+        ch_presto_filterseq_logs = PRESTO_VHVL.out.presto_filterseq_logs
+        ch_presto_maskprimers_logs = channel.empty()
+        ch_presto_collapseseq_logs = PRESTO_VHVL.out.presto_collapseseq_logs
+        ch_presto_splitseq_logs = PRESTO_VHVL.out.presto_splitseq_logs
+        ch_presto_assemblepairs_logs = channel.empty()
+        ch_presto_pairseq_logs = channel.empty()
+        ch_presto_clustersets_logs = channel.empty()
+        ch_presto_buildconsensus_logs = channel.empty()
+        ch_presto_postconsensus_pairseq_logs = channel.empty()
+
+    } else if (umi_length == 0) {
         //
         // SUBWORKFLOW: pRESTO without UMIs
         //

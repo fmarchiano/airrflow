@@ -6,14 +6,16 @@ For full pipeline documentation, usage, and parameter reference see the upstream
 
 ## Run modes: paired-end and single-end
 
-The library layout is selected with `--single_end` (default `false`). The two modes differ only in the pRESTO pre-processing. From VDJ annotation onward they are identical.
+The library layout is selected with `--single_end` (default `false`) and `--library_generation_method`. The modes differ only in pRESTO pre-processing. From VDJ annotation onward they are identical.
 
-| | Paired-end (default) | Single-end (`--single_end true`) |
-|---|---|---|
-| Input | R1 + R2 FASTQ | R1 FASTQ only |
-| Read assembly | `AssemblePairs` merges R1/R2 | none |
-| Primer masking | C and V both required (order set by `--cprimer_position`) | V required (5'); C **best-effort** (3', reads kept even without a match) |
-| ParseHeaders | `C_PRIMER` + `V_PRIMER` | single `PRIMER` field |
+| | Paired-end (default) | Single-end (`--single_end true`) | VH:VL (`--library_generation_method vhvl`) |
+|---|---|---|---|
+| Input | R1 + R2 FASTQ | R1 FASTQ only | R1 (VH) + R2 (VL) FASTQ |
+| Read assembly | `AssemblePairs` merges R1/R2 | none | none (chains are independent) |
+| Primer masking | C and V both required (order set by `--cprimer_position`) | V required (5'); C **best-effort** (3', reads kept even without a match) | **skipped** (no primers) |
+| Collapse | per-sequence | per-sequence | **pair-level** — VH+VL concatenated before CollapseSeq |
+| ParseHeaders | `C_PRIMER` + `V_PRIMER` | single `PRIMER` field | metadata only |
+| Output | single FASTA | single FASTA | two FASTAs (VH + VL), separate IgBLAST |
 
 The diagrams show the sans-UMI path (`library_generation_method = specific_pcr`). With UMIs, both modes add barcode extraction and `BuildConsensus` before primer masking. Paired-end UMI also adds `PairSeq` and `ClusterSets`.
 
@@ -48,7 +50,27 @@ flowchart TD
     J --> K[[Shared downstream]]
 ```
 
-### Shared downstream (both modes)
+### VH:VL paired
+
+```mermaid
+flowchart TD
+    A[R1=VH + R2=VL FASTQ] --> B[FASTP<br/>adapter & quality trim]
+    B --> C[GUNZIP]
+    C --> D1[FilterSeq VH<br/>quality filter]
+    C --> D2[FilterSeq VL<br/>quality filter]
+    D1 --> E["pair-hash<br/>intersect IDs, concat VH+VL<br/>store VHLEN in header"]
+    D2 --> E
+    E --> F[ParseHeaders<br/>metadata only]
+    F --> G["CollapseSeq<br/>dedupe identical (VH,VL) tuples"]
+    G --> H[SplitSeq<br/>keep DUPCOUNT >= splitseq_min_count]
+    H --> I["resplit<br/>split back into VH + VL FASTA<br/>using VHLEN"]
+    I --> J1[VH FASTA]
+    I --> J2[VL FASTA]
+    J1 --> K[[Shared downstream — IgBLAST VH]]
+    J2 --> L[[Shared downstream — IgBLAST VL]]
+```
+
+### Shared downstream (all modes)
 
 ```mermaid
 flowchart TD
@@ -64,6 +86,8 @@ flowchart TD
 ```
 
 ## Customizations
+
+- **VH:VL paired sequencing** -- `--library_generation_method vhvl` for OE-RT-PCR linked VH:VL data (e.g. DeKosky method). R1=VH, R2=VL (pre-split, no primers). FilterSeq runs on each chain independently, then pair-hash concatenates VH+VL for pair-level CollapseSeq (preserving biological pairing). After SplitSeq, resplit produces separate VH and VL FASTAs for independent IgBLAST. Paired sequences share the same `sequence_id` for downstream joining.
 
 - **Single-end support** -- `--single_end` runs a pRESTO branch without pair assembly, with best-effort 3' C-primer masking so reads that miss the C primer are kept.
 
