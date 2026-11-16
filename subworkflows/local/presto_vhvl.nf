@@ -67,8 +67,10 @@ workflow PRESTO_VHVL {
     // Emit VH and VL as separate channel entries for independent IgBLAST
     ch_fasta = VHVL_RESPLIT.out.fasta.flatMap{ meta, vh, vl ->
         def meta_vh = meta.clone()
+        meta_vh.sample_id = meta.id
         meta_vh.id = "${meta.id}_VH"
         def meta_vl = meta.clone()
+        meta_vl.sample_id = meta.id
         meta_vl.id = "${meta.id}_VL"
         [ [meta_vh, vh], [meta_vl, vl] ]
     }

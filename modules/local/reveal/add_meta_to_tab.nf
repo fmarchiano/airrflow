@@ -24,8 +24,9 @@ process ADD_META_TO_TAB {
     if (workflow.profile.tokenize(',').intersect(['conda', 'mamba']).size() >= 1) {
         error "nf-core/airrflow currently does not support Conda. Please use a container profile instead."
     }
+    def lookup_id = meta.sample_id ?: meta.id
     """
-    reveal_add_metadata.R --repertoire ${tab} --metadata ${validated_input} --input_id ${meta.id} --outname ${meta.id} > ${meta.id}_add-meta_command_log.txt
+    reveal_add_metadata.R --repertoire ${tab} --metadata ${validated_input} --input_id ${lookup_id} --outname ${meta.id} > ${meta.id}_add-meta_command_log.txt
 
     """
 }
