@@ -9,7 +9,7 @@ process VHVL_PAIR_HASH {
         'biocontainers/presto:0.7.8--pyhdfd78af_0' }"
 
     input:
-    tuple val(meta), path(vh_reads), path(vl_reads)
+    tuple val(meta), path(vh_reads, stageAs: 'vh_*'), path(vl_reads, stageAs: 'vl_*')
 
     output:
     tuple val(meta), path("${meta.id}_paired.fastq"), emit: reads
