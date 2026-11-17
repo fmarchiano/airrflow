@@ -226,11 +226,13 @@ workflow SEQUENCE_ASSEMBLY {
         //
         // SUBWORKFLOW: VH:VL paired — no primers, pair-level collapse
         //
+        ch_motifs = Channel.fromPath("${projectDir}/assets/motifs/vhvl.fasta", checkIfExists: true)
         PRESTO_VHVL(
             ch_reads,
             ch_adapter_fasta,
             save_trimmed,
-            filterseq_q
+            filterseq_q,
+            ch_motifs
         )
         ch_presto_fasta = PRESTO_VHVL.out.fasta
         ch_fastp_reads_html = PRESTO_VHVL.out.fastp_reads_html

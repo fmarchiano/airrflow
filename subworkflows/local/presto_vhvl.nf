@@ -9,14 +9,16 @@ include { PRESTO_COLLAPSESEQ            as PRESTO_COLLAPSESEQ_VHVL  } from '../.
 include { PRESTO_SPLITSEQ               as PRESTO_SPLITSEQ_VHVL     } from '../../modules/local/presto/presto_splitseq'
 include { VHVL_PAIR_HASH                                             } from '../../modules/local/vhvl_pair_hash'
 include { VHVL_RESPLIT                                               } from '../../modules/local/vhvl_resplit'
+include { VHVL_CLASSIFY                                              } from '../../modules/local/vhvl_classify'
 
 
 workflow PRESTO_VHVL {
     take:
-    ch_reads         // channel: [ val(meta), [ R1, R2 ] ]  R1=VH, R2=VL
+    ch_reads         // channel: [ val(meta), [ R1, R2 ] ]
     ch_adapter_fasta // channel: [ adapters.fasta ]
     save_trimmed
     filterseq_q
+    ch_motifs        // channel: path(motifs.fasta)
 
     main:
     ch_versions = channel.empty()
@@ -35,12 +37,15 @@ workflow PRESTO_VHVL {
     ch_gunzip = FASTP.out.reads.map{ meta, reads -> [meta, reads[0], reads[1]] }
     GUNZIP_VHVL ( ch_gunzip )
 
-    // FilterSeq on VH (R1) independently
-    ch_vh = GUNZIP_VHVL.out.reads.map{ meta, r1, r2 -> [meta, r1] }
+    // Classify reads by J-motif into VH and VL
+    VHVL_CLASSIFY ( GUNZIP_VHVL.out.reads, ch_motifs )
+
+    // FilterSeq on VH independently
+    ch_vh = VHVL_CLASSIFY.out.reads.map{ meta, vh, vl -> [meta, vh] }
     PRESTO_FILTERSEQ_VHVL_VH ( ch_vh, filterseq_q )
 
-    // FilterSeq on VL (R2) independently
-    ch_vl = GUNZIP_VHVL.out.reads.map{ meta, r1, r2 -> [meta, r2] }
+    // FilterSeq on VL independently
+    ch_vl = VHVL_CLASSIFY.out.reads.map{ meta, vh, vl -> [meta, vl] }
     PRESTO_FILTERSEQ_VHVL_VL ( ch_vl, filterseq_q )
 
     // Pair-hash: intersect IDs, concatenate VH+VL, store VHLEN
@@ -81,6 +86,8 @@ workflow PRESTO_VHVL {
     fastp_reads_json = FASTP.out.json.collect{ meta, json -> json }
     fastp_reads_html = FASTP.out.html.collect{ meta, html -> html }
     fastqc_postassembly_gz = FASTQC_POSTASSEMBLY_VHVL.out.zip
+    classify_stats = VHVL_CLASSIFY.out.stats
+    classify_logs = VHVL_CLASSIFY.out.logs
     presto_filterseq_logs = PRESTO_FILTERSEQ_VHVL_VH.out.logs
     presto_collapseseq_logs = PRESTO_COLLAPSESEQ_VHVL.out.logs.collect()
     presto_splitseq_logs = PRESTO_SPLITSEQ_VHVL.out.logs.collect()
