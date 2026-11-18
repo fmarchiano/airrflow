@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 """Classify paired-end emulsion-linked reads by chain using J-motif patterns.
 
 Generalized port of allovista's infra/split-vhvl-reads.py. Reads a motif FASTA

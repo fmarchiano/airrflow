@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 """
 Concatenate paired VH + VL FASTQs into a single FASTQ for pair-level CollapseSeq.
 

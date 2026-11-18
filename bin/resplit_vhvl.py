@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 """
 Re-split concatenated VH+VL FASTA/FASTQ back into separate VH and VL files.
 
